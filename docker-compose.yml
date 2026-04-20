@@ -1,0 +1,171 @@
+services:
+  # инфраструктура
+  redis:
+    image: redis:7-alpine
+    container_name: hw2_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - hw2_network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: hw2_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hw2_network
+
+  # auth сервис
+  auth_service:
+    build:
+      context: ./auth_service
+      dockerfile: Dockerfile
+    container_name: hw2_auth_service
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: "Auth Service"
+      ENV: "docker"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: 10080
+      SQLITE_PATH: "/data/auth.db"
+    volumes:
+      - auth_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hw2_network
+
+  # бот сервис
+  bot_service_api:
+    build:
+      context: ./bot_service
+      dockerfile: Dockerfile.api
+    container_name: hw2_bot_service_api
+    ports:
+      - "8001:8001"
+    environment:
+      APP_NAME: "Bot Service"
+      ENV: "docker"
+      BOT_TOKEN: ${BOT_TOKEN}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: "HS256"
+      REDIS_URL: "redis://redis:6379/0"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672//"
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
+      OPENROUTER_MODEL: "openai/gpt-3.5-turbo"
+      OPENROUTER_SITE_URL: "http://localhost:8001"
+      OPENROUTER_APP_NAME: "Bot Service"
+      TOKEN_TTL: 86400
+      RESULT_TTL: 300
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth_service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hw2_network
+
+  bot_service_bot:
+    build:
+      context: ./bot_service
+      dockerfile: Dockerfile.bot
+    container_name: hw2_bot_service_bot
+    environment:
+      APP_NAME: "Bot Service"
+      ENV: "docker"
+      BOT_TOKEN: ${BOT_TOKEN}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: "HS256"
+      REDIS_URL: "redis://redis:6379/0"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672//"
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
+      OPENROUTER_MODEL: "openai/gpt-3.5-turbo"
+      OPENROUTER_SITE_URL: "http://localhost:8001"
+      OPENROUTER_APP_NAME: "Bot Service"
+      TOKEN_TTL: 86400
+      RESULT_TTL: 300
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth_service:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hw2_network
+
+  bot_service_worker:
+    build:
+      context: ./bot_service
+      dockerfile: Dockerfile.worker
+    container_name: hw2_bot_service_worker
+    environment:
+      APP_NAME: "Bot Service"
+      ENV: "docker"
+      BOT_TOKEN: ${BOT_TOKEN}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALG: "HS256"
+      REDIS_URL: "redis://redis:6379/0"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672//"
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
+      OPENROUTER_MODEL: "openai/gpt-3.5-turbo"
+      OPENROUTER_SITE_URL: "http://localhost:8001"
+      OPENROUTER_APP_NAME: "Bot Service"
+      TOKEN_TTL: 86400
+      RESULT_TTL: 300
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hw2_network
+
+volumes:
+  auth_data:
+    name: hw2_auth_data
+  redis_data:
+    name: hw2_redis_data
+  rabbitmq_data:
+    name: hw2_rabbitmq_data
+
+networks:
+  hw2_network:
+    name: hw2_network
+    driver: bridge

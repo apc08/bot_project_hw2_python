@@ -1,0 +1,17 @@
+# Dockerfile для Celery Worker
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Установить uv для быстрой установки зависимостей
+RUN pip install --no-cache-dir uv
+
+# Копировать файлы проекта
+COPY pyproject.toml .
+COPY app/ ./app/
+
+# Установить зависимости через uv
+RUN uv pip install --system --no-cache -e .
+
+# Запустить Celery Worker
+CMD ["celery", "-A", "app.infra.celery_app", "worker", "--loglevel=info"]

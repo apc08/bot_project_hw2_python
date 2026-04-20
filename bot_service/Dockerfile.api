@@ -1,0 +1,20 @@
+# Dockerfile для FastAPI приложения (Bot Service API)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Установить uv для быстрой установки зависимостей
+RUN pip install --no-cache-dir uv
+
+# Копировать файлы проекта
+COPY pyproject.toml .
+COPY app/ ./app/
+
+# Установить зависимости через uv
+RUN uv pip install --system --no-cache -e .
+
+# Открыть порт
+EXPOSE 8001
+
+# Запустить uvicorn
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
